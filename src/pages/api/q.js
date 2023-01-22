@@ -3,10 +3,16 @@
 const currentSession = {};
 const answers = {}
 
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const genRanHex = (size) => [...Array(size)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
 
 const postHandler = (req, res) => {
+    console.log(`process.env.api_key: ${process.env.api_key}`)
+    const api_key = process.env.api_key;
     const sessionId = req.body.session_id || genRanHex(16);
+    const session_id = sessionId;
     try {
         if (req.body.session_id in answers) {
             return res.status(200).json({ advice: answers[sessionId] });
@@ -28,35 +34,46 @@ const postHandler = (req, res) => {
     });
 
 
-    if (currentSession[sessionId].length >= 4) {
+    if (currentSession[sessionId].length > 4) {
         console.log('triggered')
-        const prompt = currentSession[sessionId].map((question) => `\n\nQ: ${question.question}\nA: ${question.answer}`).join('');
-        const apiKey = "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";
+        const postfix = currentSession[sessionId].map((question) => `\n\nQ: ${question.question}\nA: ${question.answer}`).join('');
+        // const api_key = process.env.api_key;
+        const prompt = `\n\nWhat financial advice would you give me, based on my responses to the following questions?\n\n${postfix}\nWhat could I improve on?`;
+        console.log(prompt);
         const request = {
             method: "POST",
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+                'Authorization': `Bearer ${api_key}`
             },
             body: JSON.stringify({
                 model: "text-davinci-001",
-                prompt: `Give me in-depth financial advice based on the following questions and answers:\n\n
-        \n${prompt}`,
+                prompt: prompt,
                 max_tokens: 1000,
             }),
+
         };
+        console.log("TO GPT-3")
+        
 
         const url = "https://api.openai.com/v1/completions";
         fetch(url, request)
-            .then((response) => response.json())
+            .then((response) => {
+                // console.log("preresponse")
+                // console.log(typeof(response.choices[0].text))
+                // console.log('postresponse')
+                return response.json()})
             .then((response) => {
                 console.log(response);
                 answers[sessionId] = response.choices[0].text
-                return res.status(200).json({advice:answers[currentSession] ,session_id: sessionId, questions: currentSession[sessionId],advice: response.choices[0].text });
+                return res.status(200).json({advice:answers[currentSession] ,session_id: sessionId, questions: currentSession[session_id],advice: response.choices[0].text });
+                
             });
     }
-    return res.status(200).json({ session_id: sessionId, questions: currentSession[sessionId],advice:"Advice will be generated" });
+    else {
+        return res.status(200).json({ session_id: sessionId, questions: currentSession[sessionId],advice:"Advice will be generated" });
+    }
 
 };
 

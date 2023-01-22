@@ -3,10 +3,11 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { Inter } from '@next/font/google'
 import styles from '@/styles/Home.module.css'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import React from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link';
+//import next router
 const inter = Inter({ subsets: ['latin'] })
 
 
@@ -28,13 +29,15 @@ function getAnswer(session_id) {
     fetch(`http://localhost:3000/api/q?answer=true&session_id=${session_id}`, request)
         .then(response => response.json())
         .then(data => {
-            console.log(data)
-            return data['advice']
+            // console.log(data)
+            return data['advice'].replace(/(\r\n|\n|\r)/gm, "");
         }).catch(err => {
             console.log(err)
+            return "there was an error"
         }
         )
 }
+let loaded = false;
 
 
 export default function answer() {
@@ -43,26 +46,42 @@ export default function answer() {
 
     const { session_id } = router.query
 
-    const [answer, setAnswer] = useState('');
+    const [answer, setAnswer] = useState(null);
+
     let loaded = false;
 
+
+    useEffect(() => {
+        async function fetchData() {
+            const request = {
+                "method": 'POST',
+                "headers": { 'Content-Type': 'application/json' },
+                "body": JSON.stringify({
+                    "session_id": session_id
+                })
+            }
+            console.log('using effect')
+            const response = await fetch(`http://localhost:3000/api/q?answer=true&session_id=${session_id}`, request);
+            const json = await response.json();
+            if (json['advice'] === "") {
+                setAnswer("Not enough information was provided to give a personalized answer.");
+            } else {
+                setAnswer(json['advice']);
+            }
+        }
+        fetchData();
+    }, []);
+
+    console.log(session_id)
     if (session_id == undefined) {
         console.log('no session id')
         return (
-        <>
-            The page you are looking for is invalid.
-        </>)
+            <>
+                The page you are looking for is invalid.
+            </>)
     } else {
         return (
             <>
-                {
-                (!loaded)?
-                <>{()=>{
-                    setAnswer(getAnswer(session_id));
-                    loaded=true;
-                    console.log(answer)
-                    return''
-                    }} </>: "..."}
 
                 <Head>
                     <title>Personalized Advice</title>
@@ -84,7 +103,7 @@ export default function answer() {
                                                 Advice
                                             </h1>
                                             <p className='text-2xl text-muted text-center'>
-                                                {answer}
+                                                {answer ? answer : 'loading...'}
                                             </p>
 
                                             {/* <small id="emailHelp" className="form-text text-muted text-center">Enter your name to get started</small> */}
